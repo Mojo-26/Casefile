@@ -40,6 +40,3 @@ Contributing:
 
 Pull requests to add more cases, fix a fact, or improve the UI are welcome. Please cite a primary source (the opinion itself, Oyez, or SCOTUSblog) for any new case data.
 
-License
-
-MIT — see [LICENSE]().
