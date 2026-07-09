@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Casefile — Daily Supreme Court Guessing Game</title>
+<meta name="description" content="Guess the Supreme Court case of the day. A new case is sealed every 24 hours.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0D141F;
+    --ink-2:#141F30;
+    --ink-3:#1B2941;
+    --line:#2C3B57;
+    --paper:#EFE7D2;
+    --paper-dim:#DED3B3;
+    --brass:#C9A24B;
+    --brass-dim:#8F7433;
+    --green:#3E7A5C;
+    --green-bg:#1B2E24;
+    --amber:#C98A2C;
+    --grey:#7C8598;
+    --red-ink:#9B3B34;
+    --text-light:#EDE7D6;
+    --text-dim:#8E98B0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    position:relative;
+    background:var(--ink);
+    color:var(--text-light);
+    font-family:'Source Sans 3', sans-serif;
+    min-height:100vh;
+    padding:32px 16px 80px;
+    overflow-x:hidden;
+  }
+  /* classic law backdrop: colonnade + faint scale watermark */
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(201,162,75,0.05) 0px, rgba(201,162,75,0.05) 3px,
+        transparent 3px, transparent 68px),
+      radial-gradient(1100px 550px at 20% -10%, #182337 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #141F33 0%, transparent 55%);
+    z-index:-2;
+  }
+  body::after{
+    content:"";
+    position:fixed;
+    top:50%;left:50%;
+    width:900px;height:900px;
+    transform:translate(-50%,-50%);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 5v90M20 22l-14 22a13 13 0 0 0 28 0l-14-22zM80 22l-14 22a13 13 0 0 0 28 0l-14-22zM12 22h76M32 92h36' fill='none' stroke='%23C9A24B' stroke-width='1'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-size:contain;
+    opacity:0.035;
+    z-index:-1;
+    pointer-events:none;
+  }
+  .wrap{max-width:760px;margin:0 auto;position:relative;}
+
+  header{display:flex;align-items:center;gap:18px;margin-bottom:6px;}
+  .seal{
+    width:56px;height:56px;flex:0 0 auto;border-radius:50%;
+    border:2px solid var(--brass);
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 35% 30%, #24304C, #101827);
+    box-shadow:0 0 0 3px rgba(201,162,75,0.15);
+  }
+  .seal svg{width:28px;height:28px;}
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:2rem;
+    letter-spacing:0.02em;
+    margin:0;
+    color:var(--paper);
+  }
+  .subtitle{
+    font-family:'JetBrains Mono', monospace;
+    font-size:0.72rem;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-top:2px;
+  }
+  .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+  .iconbtn{
+    font-family:'JetBrains Mono', monospace;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    border-radius:6px;
+    padding:8px 12px;
+    font-size:0.78rem;
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .iconbtn:hover{border-color:var(--brass);color:var(--brass);}
+  .iconbtn.active{border-color:var(--brass);color:var(--brass);background:rgba(201,162,75,0.08);}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .daybar{
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+    margin-top:16px;padding:10px 14px;
+    background:var(--ink-2);border:1px solid var(--line);border-radius:8px;
+    font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--text-dim);
+  }
+  .daybar strong{color:var(--brass);}
+  .daybar .countdown{color:var(--text-light);}
+
+  .rules{
+    display:none;
+    background:var(--ink-2);
+    border:1px solid var(--line);
+    border-left:3px solid var(--brass);
+    border-radius:8px;
+    padding:16px 18px;
+    margin:16px 0 20px;
+    font-size:0.88rem;
+    line-height:1.55;
+    color:var(--text-dim);
+  }
+  .rules.show{display:block;}
+  .rules strong{color:var(--text-light);}
+  .rules .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;}
+  .swatch{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:0.72rem;}
+  .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+  .intake{
+    margin-top:22px;
+    background:var(--ink-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px;
+  }
+  .intake-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size:0.7rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:8px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .searchrow{display:flex;gap:10px;position:relative;}
+  .inputwrap{position:relative;flex:1;}
+  input[type="text"]{
+    width:100%;
+    background:var(--paper);
+    color:#1a1a1a;
+    border:1px solid var(--paper-dim);
+    border-radius:6px;
+    padding:12px 14px;
+    font-family:'Source Sans 3', sans-serif;
+    font-size:1rem;
+  }
+  input[type="text"]:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .dropdown{
+    position:absolute;top:calc(100% + 4px);left:0;right:0;
+    max-height:260px;overflow-y:auto;
+    background:var(--paper);
+    border:1px solid var(--paper-dim);
+    border-radius:8px;
+    box-shadow:0 12px 28px rgba(0,0,0,0.45);
+    display:none;
+    z-index:20;
+  }
+  .dropdown.show{display:block;}
+  .dropdown .opt{
+    padding:10px 14px;
+    font-family:'Source Sans 3',sans-serif;
+    font-size:0.92rem;
+    color:#241b06;
+    cursor:pointer;
+    border-bottom:1px solid rgba(0,0,0,0.06);
+  }
+  .dropdown .opt:last-child{border-bottom:none;}
+  .dropdown .opt:hover, .dropdown .opt.hi{background:rgba(201,162,75,0.28);}
+  .dropdown .opt .oy{float:right;font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:#6b5f3e;}
+  .dropdown .empty{padding:12px 14px;font-size:0.85rem;color:#6b6250;font-style:italic;}
+  .submitbtn{
+    background:var(--brass);
+    color:#1a1408;
+    border:none;
+    border-radius:6px;
+    padding:0 20px;
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    font-size:0.85rem;
+    letter-spacing:0.04em;
+    cursor:pointer;
+    transition:background .15s;
+  }
+  .submitbtn:hover{background:#DEB463;}
+  .submitbtn:disabled{background:var(--grey);cursor:not-allowed;}
+  .errmsg{color:#E29A94;font-size:0.82rem;margin-top:8px;font-family:'JetBrains Mono',monospace;min-height:1.2em;}
+  .metarow{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--text-dim);}
+  .hintbtn{
+    background:transparent;border:1px dashed var(--brass-dim);color:var(--brass);
+    border-radius:6px;padding:6px 12px;font-family:'JetBrains Mono',monospace;font-size:0.72rem;cursor:pointer;
+    display:inline-flex;align-items:center;gap:5px;
+  }
+  .hintbtn:hover{border-color:var(--brass);}
+  .hintbox{
+    display:none;margin-top:12px;background:var(--ink-3);border-left:3px solid var(--brass);
+    border-radius:6px;padding:12px 14px;font-family:'Fraunces',serif;font-style:italic;font-size:0.95rem;line-height:1.5;color:var(--text-light);
+  }
+  .hintbox.show{display:block;}
+  .hintbox .cite{display:block;margin-top:8px;font-family:'JetBrains Mono',monospace;font-style:normal;font-size:0.68rem;color:var(--text-dim);}
+
+  .colheads{
+    display:grid;
+    grid-template-columns: 1.6fr 1fr 1.2fr 1.3fr;
+    gap:8px;
+    margin:22px 0 8px;
+    padding:0 4px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.65rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+
+  .docket{display:flex;flex-direction:column;gap:8px;}
+  .card{
+    position:relative;
+    background:var(--paper);
+    border-radius:8px;
+    display:grid;
+    grid-template-columns: 1.6fr 1fr 1.2fr 1.3fr;
+    gap:8px;
+    align-items:center;
+    padding:12px;
+    overflow:hidden;
+    animation:dealIn .3s ease-out;
+  }
+  @keyframes dealIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+  .card .name{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    color:#1a1a1a;
+    font-size:0.92rem;
+    line-height:1.25;
+  }
+  .card .name .yr{
+    display:block;font-family:'JetBrains Mono',monospace;font-weight:400;font-size:0.7rem;color:#5a5a4a;margin-top:2px;
+  }
+  .badge{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.72rem;
+    font-weight:700;
+    text-align:center;
+    padding:8px 6px;
+    border-radius:6px;
+    color:var(--text-light);
+    line-height:1.2;
+  }
+  .badge .arrow{font-size:0.9rem;margin-left:3px;}
+  .b-green{background:var(--green);}
+  .b-amber{background:var(--amber);color:#241b06;}
+  .b-grey{background:var(--grey);color:#1a1f2b;}
+  .win-stamp{
+    position:absolute;right:10px;top:50%;transform:translateY(-50%) rotate(-8deg);
+    border:3px solid var(--red-ink);color:var(--red-ink);
+    font-family:'JetBrains Mono',monospace;font-weight:700;font-size:0.9rem;
+    padding:4px 10px;border-radius:4px;letter-spacing:0.08em;
+    opacity:0.85;pointer-events:none;
+  }
+
+  /* win banner + gavel */
+  .winbanner{
+    display:none;
+    margin-top:20px;
+    background:var(--green-bg);
+    border:1px solid var(--green);
+    border-radius:10px;
+    padding:22px;
+    position:relative;
+    overflow:hidden;
+  }
+  .winbanner.show{display:block;}
+  .gavelstage{
+    position:relative;height:64px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:6px;
+  }
+  .gavelstage svg{width:64px;height:64px;transform-origin:70% 20%;}
+  .gavelstage.strike svg{animation:gavelFall .55s cubic-bezier(.34,1.56,.64,1) both;}
+  @keyframes gavelFall{
+    0%{transform:translateY(-46px) rotate(-38deg);opacity:0;}
+    55%{transform:translateY(0) rotate(-2deg);opacity:1;}
+    70%{transform:translateY(-4px) rotate(2deg);}
+    100%{transform:translateY(0) rotate(0deg);}
+  }
+  .winbanner.shake{animation:shake .4s ease .5s;}
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-4px);}
+    40%{transform:translateX(4px);}
+    60%{transform:translateX(-3px);}
+    80%{transform:translateX(3px);}
+  }
+  .winbanner h2{font-family:'Fraunces',serif;margin:0 0 6px;color:#CFE9DA;font-size:1.3rem;text-align:center;}
+  .winbanner .winmeta{margin:4px 0;font-size:0.82rem;color:#9FC2AE;text-align:center;font-family:'JetBrains Mono',monospace;}
+  .winbanner .passage{font-style:italic;font-family:'Fraunces',serif;color:#DCEEE3;margin-top:14px;font-size:1rem;border-left:2px solid var(--green);padding-left:12px;}
+  .winbanner .summary{
+    margin-top:16px;background:rgba(255,255,255,0.04);border-radius:8px;padding:14px 16px;
+  }
+  .winbanner .summary .lbl{font-family:'JetBrains Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--brass);margin-bottom:6px;display:block;}
+  .winbanner .summary p{margin:0;font-size:0.92rem;line-height:1.55;color:#DCEEE3;}
+  .newgamebtn{
+    margin-top:16px;background:var(--brass);color:#1a1408;border:none;border-radius:6px;
+    padding:10px 18px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:0.82rem;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .newgamebtn:hover{background:#DEB463;}
+  .sharebtn{
+    margin-top:16px;margin-left:10px;background:transparent;color:var(--brass);border:1px solid var(--brass-dim);border-radius:6px;
+    padding:10px 18px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:0.82rem;cursor:pointer;
+  }
+  .sharebtn:hover{border-color:var(--brass);}
+
+  .practicebadge{
+    display:inline-block;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:0.68rem;
+    color:var(--amber);border:1px dashed var(--amber);border-radius:5px;padding:3px 8px;letter-spacing:0.06em;
+  }
+
+  footer{margin-top:32px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--text-dim);opacity:0.7;line-height:1.7;}
+
+  @media (max-width:560px){
+    .colheads{display:none;}
+    .card{grid-template-columns:1fr;gap:6px;}
+    .card .name{margin-bottom:2px;}
+    .win-stamp{position:static;transform:none;display:inline-block;margin-top:6px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toprow">
+    <header>
+      <div class="seal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#C9A24B" stroke-width="1.4">
+          <path d="M12 2v18M6 8l-4 6a4 4 0 0 0 8 0l-4-6zM18 8l-4 6a4 4 0 0 0 8 0l-4-6zM4 8h16M9 22h6"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Casefile</h1>
+        <div class="subtitle">Daily Supreme Court guessing game</div>
+      </div>
+    </header>
+    <div class="btnrow">
+      <button class="iconbtn" id="rulesToggle">How to play</button>
+      <button class="iconbtn" id="practiceToggle">🎲 Practice round</button>
+    </div>
+  </div>
+
+  <div class="daybar">
+    <span>Case No. <strong id="dayIndexLabel"></strong> · <span id="dayDateLabel"></span></span>
+    <span>Next case in <span class="countdown" id="countdown">--:--:--</span></span>
+  </div>
+
+  <div class="rules" id="rulesPanel">
+    <strong>Docket No. 001 — Instructions</strong>
+    <p style="margin-top:6px;">A famous U.S. Supreme Court case is sealed for today. Everyone gets the same case — it changes every 24 hours at midnight UTC. Enter a case name to file a guess. Each guess reveals three clues comparing it to the sealed case:</p>
+    <ul style="margin:8px 0 0 18px;padding:0;">
+      <li><strong>Era</strong> — how close your case's decision year is, with an arrow toward the correct era.</li>
+      <li><strong>Type of Law</strong> — whether the legal category matches or is related.</li>
+      <li><strong>Decision</strong> — whether the outcome (affirmed, reversed, etc.) matches.</li>
+    </ul>
+    <div class="legend">
+      <span class="swatch"><span class="dot" style="background:var(--green)"></span> Exact match</span>
+      <span class="swatch"><span class="dot" style="background:var(--amber)"></span> Close / related</span>
+      <span class="swatch"><span class="dot" style="background:var(--grey)"></span> Not close</span>
+    </div>
+    <p style="margin-top:10px;">Stuck? Use the hint button to pull a passage from the sealed case's majority opinion. Want more reps? Try a practice round — it uses a random case and doesn't affect your daily result.</p>
+  </div>
+
+  <div class="intake">
+    <label class="intake-label" for="guessInput">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9A24B" stroke-width="2"><path d="M12 2v18M6 8l-4 6a4 4 0 0 0 8 0l-4-6zM18 8l-4 6a4 4 0 0 0 8 0l-4-6zM4 8h16M9 22h6"/></svg>
+      File a guess
+    </label>
+    <div class="searchrow">
+      <div class="inputwrap">
+        <input type="text" id="guessInput" placeholder="Click to browse cases, or start typing…" autocomplete="off">
+        <div class="dropdown" id="dropdown"></div>
+      </div>
+      <button class="submitbtn" id="submitBtn">FILE</button>
+    </div>
+    <div class="errmsg" id="errMsg"></div>
+    <div class="metarow">
+      <span id="guessCount">0 guesses filed</span>
+      <button class="hintbtn" id="hintBtn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h6M9 8h2"/></svg>
+        Request a hint
+      </button>
+    </div>
+    <div class="hintbox" id="hintBox"></div>
+    <div id="practiceBadgeWrap"></div>
+  </div>
+
+  <div class="colheads" id="colHeads" style="display:none;">
+    <span>Case</span><span>Era</span><span>Type of Law</span><span>Decision</span>
+  </div>
+  <div class="docket" id="docket"></div>
+
+  <div class="winbanner" id="winBanner">
+    <div class="gavelstage" id="gavelStage">
+      <svg viewBox="0 0 64 64" fill="none">
+        <rect x="6" y="46" width="52" height="6" rx="1.5" fill="#8F7433"/>
+        <g>
+          <rect x="8" y="10" width="22" height="14" rx="2" transform="rotate(-38 19 17)" fill="#C9A24B"/>
+          <rect x="26" y="16" width="6" height="30" rx="2" transform="rotate(-38 29 31)" fill="#8F7433"/>
+        </g>
+      </svg>
+    </div>
+    <h2 id="winTitle"></h2>
+    <p class="winmeta" id="winMeta"></p>
+    <p class="passage" id="winPassage"></p>
+    <div class="summary">
+      <span class="lbl">Case summary</span>
+      <p id="winSummary"></p>
+    </div>
+    <div>
+      <button class="newgamebtn" id="newGameBtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1408" stroke-width="2"><path d="M17 3l4 4-4 4M7 21l-4-4 4-4M21 7H9a4 4 0 0 0-4 4M3 17h12a4 4 0 0 0 4-4"/></svg>
+        Play a practice round
+      </button>
+      <button class="sharebtn" id="shareBtn">Copy result</button>
+    </div>
+  </div>
+
+  <footer>
+    Case data drawn from published, public-domain Supreme Court opinions. For fun, not legal advice.<br>
+    A new case is sealed every day at 00:00 UTC.
+  </footer>
+</div>
+
+<script>
+const CASES = [
+  {name:"Marbury v. Madison", year:1803, type:"Judicial Review", tags:["Federal Power","Constitutional Structure"], decision:"Petition Denied", passage:"It is emphatically the province and duty of the judicial department to say what the law is.", summary:"Established the principle of judicial review, giving federal courts the power to strike down laws that conflict with the Constitution."},
+  {name:"McCulloch v. Maryland", year:1819, type:"Federalism", tags:["Federal Power","Commerce & Economic"], decision:"Reversed", passage:"The power to tax involves the power to destroy.", summary:"Confirmed Congress's implied powers under the Necessary and Proper Clause and held that states cannot tax federal institutions."},
+  {name:"Dred Scott v. Sandford", year:1857, type:"Civil Rights", tags:["Citizenship","Slavery"], decision:"Reversed", passage:"[He] had no rights which the white man was bound to respect.", summary:"Held that Black Americans, enslaved or free, could not be citizens and that Congress could not ban slavery in the territories — a ruling later overturned by constitutional amendment."},
+  {name:"Plessy v. Ferguson", year:1896, type:"Civil Rights", tags:["Equal Protection","Segregation"], decision:"Affirmed", passage:"The underlying fallacy of the plaintiff's argument is the assumption that the enforced separation of the two races stamps the colored race with a badge of inferiority.", summary:"Upheld state-mandated racial segregation under the doctrine of 'separate but equal,' later overturned by Brown v. Board of Education."},
+  {name:"Schenck v. United States", year:1919, type:"First Amendment", tags:["Free Speech","Wartime Powers"], decision:"Affirmed", passage:"The most stringent protection of free speech would not protect a man in falsely shouting fire in a theatre and causing a panic.", summary:"Established the 'clear and present danger' test for when speech loses First Amendment protection."},
+  {name:"Korematsu v. United States", year:1944, type:"Civil Rights", tags:["Equal Protection","Wartime Powers"], decision:"Affirmed", passage:"All legal restrictions which curtail the civil rights of a single racial group are immediately suspect.", summary:"Upheld the internment of Japanese Americans during World War II — a decision widely condemned today and repudiated by the Court decades later."},
+  {name:"Brown v. Board of Education", year:1954, type:"Civil Rights", tags:["Equal Protection","Education"], decision:"Reversed", passage:"In the field of public education, the doctrine of 'separate but equal' has no place. Separate educational facilities are inherently unequal.", summary:"Declared state-sponsored segregation in public schools unconstitutional, overturning Plessy v. Ferguson."},
+  {name:"Mapp v. Ohio", year:1961, type:"Criminal Procedure", tags:["Fourth Amendment","Search & Seizure"], decision:"Reversed", passage:"All evidence obtained by searches and seizures in violation of the Constitution is, by that same authority, inadmissible in a state court.", summary:"Extended the exclusionary rule to state courts, barring illegally obtained evidence from being used at trial."},
+  {name:"Engel v. Vitale", year:1962, type:"First Amendment", tags:["Establishment Clause","Education"], decision:"Reversed", passage:"It is no part of the business of government to compose official prayers for any group of the American people to recite.", summary:"Ruled that state-sponsored prayer in public schools violates the Establishment Clause."},
+  {name:"Gideon v. Wainwright", year:1963, type:"Criminal Procedure", tags:["Sixth Amendment","Right to Counsel"], decision:"Reversed", passage:"The noble ideal of fair trials before impartial tribunals... cannot be realized if the poor man charged with crime has to face his accusers without a lawyer to assist him.", summary:"Established that states must provide a lawyer to criminal defendants who cannot afford one."},
+  {name:"New York Times Co. v. Sullivan", year:1964, type:"First Amendment", tags:["Free Press","Defamation"], decision:"Reversed", passage:"Debate on public issues should be uninhibited, robust, and wide-open.", summary:"Set a high 'actual malice' bar for public officials suing for defamation, protecting robust criticism of government."},
+  {name:"Griswold v. Connecticut", year:1965, type:"Privacy", tags:["Due Process","Substantive Rights"], decision:"Reversed", passage:"Specific guarantees in the Bill of Rights have penumbras, formed by emanations from those guarantees that help give them life and substance.", summary:"Recognized a constitutional right to privacy, striking down a ban on contraceptive use by married couples."},
+  {name:"Miranda v. Arizona", year:1966, type:"Criminal Procedure", tags:["Fifth Amendment","Self-Incrimination"], decision:"Reversed", passage:"The prosecution may not use statements... stemming from custodial interrogation unless it demonstrates the use of procedural safeguards effective to secure the privilege against self-incrimination.", summary:"Required police to inform suspects of their rights before custodial interrogation, creating the 'Miranda warning.'"},
+  {name:"Loving v. Virginia", year:1967, type:"Civil Rights", tags:["Equal Protection","Marriage"], decision:"Reversed", passage:"Marriage is one of the 'basic civil rights of man,' fundamental to our very existence and survival.", summary:"Struck down state laws banning interracial marriage as unconstitutional."},
+  {name:"Terry v. Ohio", year:1968, type:"Criminal Procedure", tags:["Fourth Amendment","Search & Seizure"], decision:"Affirmed", passage:"The police officer must be able to point to specific and articulable facts which, taken together with rational inferences from those facts, reasonably warrant that intrusion.", summary:"Allowed police to briefly stop and frisk a person based on reasonable suspicion, short of full probable cause."},
+  {name:"Tinker v. Des Moines", year:1969, type:"First Amendment", tags:["Free Speech","Education"], decision:"Reversed", passage:"It can hardly be argued that either students or teachers shed their constitutional rights to freedom of speech or expression at the schoolhouse gate.", summary:"Held that public school students retain free speech rights, so long as their expression doesn't disrupt school activities."},
+  {name:"Roe v. Wade", year:1973, type:"Privacy", tags:["Due Process","Substantive Rights"], decision:"Affirmed in Part, Reversed in Part", passage:"This right of privacy... is broad enough to encompass a woman's decision whether or not to terminate her pregnancy.", summary:"Recognized a constitutional right to abortion under privacy protections; later overturned by Dobbs v. Jackson Women's Health in 2022."},
+  {name:"United States v. Nixon", year:1974, type:"Executive Power", tags:["Separation of Powers"], decision:"Affirmed", passage:"Neither the doctrine of separation of powers, nor the need for confidentiality of high-level communications, without more, can sustain an absolute, unqualified presidential privilege.", summary:"Ruled that executive privilege is not absolute, forcing President Nixon to turn over White House tape recordings."},
+  {name:"Texas v. Johnson", year:1989, type:"First Amendment", tags:["Free Speech","Symbolic Speech"], decision:"Affirmed", passage:"If there is a bedrock principle underlying the First Amendment, it is that the government may not prohibit the expression of an idea simply because society finds the idea itself offensive or disagreeable.", summary:"Held that burning the American flag as political protest is protected symbolic speech."},
+  {name:"Bush v. Gore", year:2000, type:"Equal Protection", tags:["Elections","Due Process"], decision:"Reversed", passage:"The recount process, in its features here described, is inconsistent with the minimum procedures necessary to protect the fundamental right of each voter.", summary:"Halted the Florida vote recount, effectively deciding the outcome of the 2000 presidential election."},
+  {name:"Lawrence v. Texas", year:2003, type:"Privacy", tags:["Due Process","Equal Protection"], decision:"Reversed", passage:"The petitioners are entitled to respect for their private lives.", summary:"Struck down state sodomy laws, holding that private consensual conduct between adults is constitutionally protected."},
+  {name:"District of Columbia v. Heller", year:2008, type:"Second Amendment", tags:["Individual Rights"], decision:"Affirmed", passage:"The Second Amendment conferred an individual right to keep and bear arms.", summary:"Held that the Second Amendment protects an individual right to own a firearm for self-defense, unconnected to militia service."},
+  {name:"Citizens United v. FEC", year:2010, type:"First Amendment", tags:["Free Speech","Campaign Finance"], decision:"Affirmed in Part, Reversed in Part", passage:"The Government may not suppress political speech on the basis of the speaker's corporate identity.", summary:"Ruled that political spending by corporations and unions is a form of protected speech, loosening campaign finance limits."},
+  {name:"Obergefell v. Hodges", year:2015, type:"Civil Rights", tags:["Equal Protection","Due Process","Marriage"], decision:"Reversed", passage:"No union is more profound than marriage, for it embodies the highest ideals of love, fidelity, devotion, sacrifice, and family.", summary:"Established a constitutional right to same-sex marriage nationwide."},
+  {name:"Shelby County v. Holder", year:2013, type:"Civil Rights", tags:["Voting Rights","Federalism"], decision:"Reversed", passage:"Congress did not use that record to fashion a coverage formula grounded in current conditions.", summary:"Struck down the Voting Rights Act's coverage formula for deciding which states needed federal preclearance before changing voting laws, effectively ending that oversight requirement."},
+  {name:"Dobbs v. Jackson Women's Health Organization", year:2022, type:"Privacy", tags:["Due Process","Substantive Rights"], decision:"Reversed and Remanded", passage:"The Constitution does not confer a right to abortion; Roe and Casey are overruled; and the authority to regulate abortion is returned to the people and their elected representatives.", summary:"Overturned Roe v. Wade and Planned Parenthood v. Casey, holding that the Constitution does not protect a right to abortion and returning the authority to regulate it to the states."},
+  {name:"Students for Fair Admissions v. Harvard", year:2023, type:"Civil Rights", tags:["Equal Protection","Education"], decision:"Reversed", passage:"Eliminating racial discrimination means eliminating all of it.", summary:"Held that race-conscious affirmative action programs in college admissions violate the Equal Protection Clause, effectively ending the practice at most universities."},
+  {name:"303 Creative LLC v. Elenis", year:2023, type:"First Amendment", tags:["Free Speech","Compelled Speech"], decision:"Reversed", passage:"Colorado does not just seek to ensure the sale of goods or services on equal terms. It seeks to use its law to compel an individual to create speech she does not believe.", summary:"Held that the First Amendment protects a website designer's right to decline creating custom wedding websites celebrating marriages she disagrees with on religious grounds."},
+  {name:"Trump v. United States", year:2024, type:"Executive Power", tags:["Separation of Powers","Presidential Immunity"], decision:"Vacated and Remanded", passage:"The President is not above the law.", summary:"Held that former presidents have absolute immunity from prosecution for official acts within their core constitutional powers, and at least presumptive immunity for other official acts."},
+  {name:"Trump v. Barbara", year:2026, type:"Civil Rights", tags:["Citizenship","Fourteenth Amendment"], decision:"Affirmed", passage:"Children born in the United States to parents unlawfully or temporarily present are 'subject to the jurisdiction' of the United States and are citizens at birth under the Fourteenth Amendment.", summary:"Struck down a 2025 executive order that sought to end birthright citizenship for children born in the U.S. to parents without legal status, reaffirming that the Fourteenth Amendment guarantees citizenship to nearly all children born on American soil."}
+];
+
+/* ---------- storage: localStorage with in-memory fallback ---------- */
+const memoryStore = {};
+function storageGet(key){
+  try{ return localStorage.getItem(key); }catch(e){ return Object.prototype.hasOwnProperty.call(memoryStore,key) ? memoryStore[key] : null; }
+}
+function storageSet(key, value){
+  try{ localStorage.setItem(key, value); }catch(e){ memoryStore[key] = value; }
+}
+
+/* ---------- daily case selection ---------- */
+function getUTCDayIndex(){
+  const now = new Date();
+  const utcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.floor(utcMidnight / 86400000);
+}
+const dayIndex = getUTCDayIndex();
+const dailyTarget = CASES[dayIndex % CASES.length];
+
+function normalize(s){ return s.trim().toLowerCase().replace(/\s+/g,' '); }
+
+/* ---------- app state ---------- */
+let mode = 'daily'; // 'daily' | 'practice'
+let dailyGuesses = [];
+let dailySolved = false;
+let practiceTarget = null;
+let practiceGuesses = [];
+let practiceSolved = false;
+
+const STORAGE_KEY = `casefile_daily_${dayIndex}`;
+
+function loadDailyProgress(){
+  const raw = storageGet(STORAGE_KEY);
+  if(!raw) return;
+  try{
+    const data = JSON.parse(raw);
+    dailyGuesses = (data.guesses || []).map(n => CASES.find(c => c.name === n)).filter(Boolean);
+    dailySolved = !!data.solved;
+  }catch(e){ /* ignore corrupt data, start fresh */ }
+}
+function saveDailyProgress(){
+  storageSet(STORAGE_KEY, JSON.stringify({guesses: dailyGuesses.map(g => g.name), solved: dailySolved}));
+}
+
+function current(){
+  return mode === 'daily'
+    ? {target: dailyTarget, guesses: dailyGuesses, solved: dailySolved}
+    : {target: practiceTarget, guesses: practiceGuesses, solved: practiceSolved};
+}
+
+/* ---------- clue logic ---------- */
+function yearClue(guessYear, targetYear){
+  const diff = guessYear - targetYear;
+  if(diff === 0) return {color:'b-green', arrow:''};
+  const arrow = diff > 0 ? '↓' : '↑';
+  if(Math.abs(diff) <= 15) return {color:'b-amber', arrow};
+  return {color:'b-grey', arrow};
+}
+function typeClue(guessCase, targetCase){
+  if(guessCase.type === targetCase.type) return 'b-green';
+  const guessAll = [guessCase.type, ...guessCase.tags];
+  const targetAll = [targetCase.type, ...targetCase.tags];
+  return guessAll.some(t => targetAll.includes(t)) ? 'b-amber' : 'b-grey';
+}
+function decisionClue(guessCase, targetCase){
+  return guessCase.decision === targetCase.decision ? 'b-green' : 'b-grey';
+}
+
+/* ---------- rendering ---------- */
+function renderAll(){
+  const {target, guesses, solved} = current();
+  const colHeads = document.getElementById('colHeads');
+  const docket = document.getElementById('docket');
+  colHeads.style.display = guesses.length ? '' : 'none';
+  docket.innerHTML = guesses.slice().reverse().map(g => {
+    const yc = yearClue(g.year, target.year);
+    const tc = typeClue(g, target);
+    const dc = decisionClue(g, target);
+    const isWin = g.name === target.name;
+    return `
+      <div class="card">
+        <div class="name">${g.name}<span class="yr">Decided ${g.year}</span></div>
+        <div class="badge ${yc.color}">${g.year}${yc.arrow ? `<span class="arrow">${yc.arrow}</span>` : ''}</div>
+        <div class="badge ${tc}">${g.type}</div>
+        <div class="badge ${dc}">${g.decision}</div>
+        ${isWin ? '<div class="win-stamp">CASE CLOSED</div>' : ''}
+      </div>`;
+  }).join('');
+  document.getElementById('guessCount').textContent = `${guesses.length} guess${guesses.length===1?'':'es'} filed`;
+
+  const submitBtn = document.getElementById('submitBtn');
+  const input = document.getElementById('guessInput');
+  submitBtn.disabled = solved;
+  input.disabled = solved;
+
+  const winBanner = document.getElementById('winBanner');
+  if(solved){
+    document.getElementById('winTitle').textContent = `Solved: ${target.name}`;
+    document.getElementById('winMeta').textContent = `Decided ${target.year} · ${target.type} · ${target.decision} · cracked in ${guesses.length} guess${guesses.length===1?'':'es'}`;
+    document.getElementById('winPassage').textContent = `“${target.passage}”`;
+    document.getElementById('winSummary').textContent = target.summary;
+    winBanner.classList.add('show');
+  } else {
+    winBanner.classList.remove('show');
+    winBanner.classList.remove('shake');
+  }
+
+  const badgeWrap = document.getElementById('practiceBadgeWrap');
+  badgeWrap.innerHTML = mode === 'practice' ? '<span class="practicebadge">PRACTICE ROUND — not saved</span>' : '';
+  document.getElementById('practiceToggle').classList.toggle('active', mode === 'practice');
+
+  document.getElementById('hintBox').classList.remove('show');
+  document.getElementById('errMsg').textContent = '';
+}
+
+function playGavel(){
+  const stage = document.getElementById('gavelStage');
+  const banner = document.getElementById('winBanner');
+  stage.classList.remove('strike'); void stage.offsetWidth;
+  banner.classList.remove('shake'); void banner.offsetWidth;
+  stage.classList.add('strike');
+  banner.classList.add('shake');
+}
+
+/* ---------- guess submission ---------- */
+function submitGuess(){
+  const {target, solved} = current();
+  const input = document.getElementById('guessInput');
+  const errEl = document.getElementById('errMsg');
+  errEl.textContent = '';
+  if(solved) return;
+  const val = input.value;
+  if(!val.trim()){ errEl.textContent = 'Enter a case name first.'; return; }
+  const found = CASES.find(c => normalize(c.name) === normalize(val));
+  if(!found){ errEl.textContent = 'Not in the docket. Choose a case from the dropdown.'; return; }
+  const guessesArr = mode === 'daily' ? dailyGuesses : practiceGuesses;
+  if(guessesArr.some(g => g.name === found.name)){ errEl.textContent = 'Already filed that guess.'; return; }
+  guessesArr.push(found);
+  const win = found.name === target.name;
+  if(mode === 'daily'){ if(win) dailySolved = true; saveDailyProgress(); }
+  else { if(win) practiceSolved = true; }
+  input.value = '';
+  closeDropdown();
+  renderAll();
+  if(win) playGavel();
+}
+
+/* ---------- hint ---------- */
+function toggleHint(){
+  const {target} = current();
+  const box = document.getElementById('hintBox');
+  if(box.classList.contains('show')){ box.classList.remove('show'); return; }
+  box.innerHTML = `“${target.passage}”<span class="cite">— from the majority opinion of today's sealed case</span>`;
+  box.classList.add('show');
+}
+
+/* ---------- practice mode ---------- */
+function startPractice(){
+  const pool = CASES.filter(c => c.name !== dailyTarget.name);
+  practiceTarget = pool[Math.floor(Math.random() * pool.length)];
+  practiceGuesses = [];
+  practiceSolved = false;
+  mode = 'practice';
+  renderAll();
+}
+function backToDaily(){
+  mode = 'daily';
+  renderAll();
+}
+
+/* ---------- custom dropdown ---------- */
+const input = document.getElementById('guessInput');
+const dropdown = document.getElementById('dropdown');
+let hiIndex = -1;
+
+function renderDropdown(filterText){
+  const q = normalize(filterText || '');
+  const list = q ? CASES.filter(c => normalize(c.name).includes(q)) : CASES;
+  if(!list.length){
+    dropdown.innerHTML = '<div class="empty">No matching cases.</div>';
+  } else {
+    dropdown.innerHTML = list.map(c =>
+      `<div class="opt" data-name="${c.name.replace(/"/g,'&quot;')}">${c.name}<span class="oy">${c.year}</span></div>`
+    ).join('');
+  }
+  hiIndex = -1;
+  dropdown.classList.add('show');
+}
+function closeDropdown(){ dropdown.classList.remove('show'); hiIndex = -1; }
+
+input.addEventListener('click', () => renderDropdown(input.value));
+input.addEventListener('input', () => renderDropdown(input.value));
+input.addEventListener('keydown', e => {
+  const opts = Array.from(dropdown.querySelectorAll('.opt'));
+  if(e.key === 'ArrowDown' && opts.length){
+    e.preventDefault(); hiIndex = Math.min(hiIndex+1, opts.length-1);
+    opts.forEach((o,i)=>o.classList.toggle('hi', i===hiIndex));
+    opts[hiIndex].scrollIntoView({block:'nearest'});
+  } else if(e.key === 'ArrowUp' && opts.length){
+    e.preventDefault(); hiIndex = Math.max(hiIndex-1, 0);
+    opts.forEach((o,i)=>o.classList.toggle('hi', i===hiIndex));
+    opts[hiIndex].scrollIntoView({block:'nearest'});
+  } else if(e.key === 'Enter'){
+    if(hiIndex >= 0 && opts[hiIndex]){ input.value = opts[hiIndex].dataset.name; closeDropdown(); }
+    submitGuess();
+  } else if(e.key === 'Escape'){
+    closeDropdown();
+  }
+});
+dropdown.addEventListener('mousedown', e => {
+  const opt = e.target.closest('.opt');
+  if(!opt) return;
+  input.value = opt.dataset.name;
+  closeDropdown();
+});
+document.addEventListener('click', e => {
+  if(!e.target.closest('.inputwrap')) closeDropdown();
+});
+
+/* ---------- countdown ---------- */
+function updateCountdown(){
+  const now = new Date();
+  const nextMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+1);
+  let diff = Math.max(0, nextMidnight - now.getTime());
+  const h = String(Math.floor(diff/3600000)).padStart(2,'0');
+  const m = String(Math.floor((diff%3600000)/60000)).padStart(2,'0');
+  const s = String(Math.floor((diff%60000)/1000)).padStart(2,'0');
+  document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateCountdown, 1000);
+
+/* ---------- share result ---------- */
+function buildShareText(){
+  const {target, guesses, solved} = current();
+  const lines = guesses.map(g => {
+    const yc = yearClue(g.year, target.year);
+    const tc = typeClue(g, target);
+    const dc = decisionClue(g, target);
+    const sym = c => c==='b-green' ? '🟩' : c==='b-amber' ? '🟨' : '⬜';
+    return `${sym(yc.color)}${sym(tc)}${sym(dc)}`;
+  });
+  const header = mode === 'daily'
+    ? `Casefile — Case No. ${dayIndex}\n${solved ? guesses.length : 'X'}/∞ guesses`
+    : `Casefile — Practice round`;
+  return `${header}\n${lines.join('\n')}`;
+}
+document.getElementById('shareBtn').addEventListener('click', () => {
+  const text = buildShareText();
+  const btn = document.getElementById('shareBtn');
+  const done = () => { const old = btn.textContent; btn.textContent = 'Copied!'; setTimeout(()=>btn.textContent = old, 1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(() => { window.prompt('Copy your result:', text); });
+  } else {
+    window.prompt('Copy your result:', text);
+  }
+});
+
+/* ---------- wire up buttons ---------- */
+document.getElementById('submitBtn').addEventListener('click', submitGuess);
+document.getElementById('hintBtn').addEventListener('click', toggleHint);
+document.getElementById('rulesToggle').addEventListener('click', () => {
+  document.getElementById('rulesPanel').classList.toggle('show');
+});
+document.getElementById('practiceToggle').addEventListener('click', () => {
+  if(mode === 'practice'){ backToDaily(); } else { startPractice(); }
+});
+document.getElementById('newGameBtn').addEventListener('click', () => {
+  if(mode === 'daily'){ startPractice(); } else { startPractice(); }
+});
+
+/* ---------- init ---------- */
+loadDailyProgress();
+document.getElementById('dayIndexLabel').textContent = dayIndex;
+document.getElementById('dayDateLabel').textContent = new Date().toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric', timeZone:'UTC'});
+updateCountdown();
+renderAll();
+</script>
+</body>
+</html>
