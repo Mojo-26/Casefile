@@ -2,7 +2,7 @@ Casefile — Daily Supreme Court Guessing Game
 
 A Wordle-style daily guessing game where you try to identify a famous U.S. Supreme Court case from color-coded clues.
 
-[Play it live →](https://)**
+[Play it live →](https://mojo-26.github.io/Casefile/)**
 
 How to play:
 
